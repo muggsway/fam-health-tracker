@@ -164,10 +164,11 @@ export function normalizeMetricKey(rawName: string): string {
     [/hemoglobin(?!.*a1c)|haemoglobin/i, 'hemoglobin'],
     [/triglyceride/i, 'triglycerides'],
     [/total.*cholesterol|cholesterol.*total/i, 'total_cholesterol'],
-    [/hdl.*cholesterol|cholesterol.*hdl/i, 'hdl_cholesterol'],
-    [/ldl.*cholesterol|cholesterol.*ldl/i, 'ldl_cholesterol'],
+    [/non[-_\s.]?hdl/i, 'non_hdl_cholesterol'],          // must precede hdl pattern
+    [/\bhdl\b|hdl.*cholesterol|cholesterol.*hdl/i, 'hdl_cholesterol'],
+    [/non[-_\s.]?ldl/i, 'non_ldl_cholesterol'],           // must precede ldl pattern
+    [/\bldl\b|ldl.*cholesterol|cholesterol.*ldl/i, 'ldl_cholesterol'],
     [/vldl/i, 'vldl_cholesterol'],
-    [/non.hdl/i, 'non_hdl_cholesterol'],
     [/apo.*b(?!\/)/i, 'apo_b'],
     [/apo.*a1|apo.*a-1/i, 'apo_a1'],
     [/apo.*b.*a1|apo.*ratio/i, 'apo_b_a1_ratio'],

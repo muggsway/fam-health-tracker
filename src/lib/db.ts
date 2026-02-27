@@ -17,6 +17,42 @@ function getSql() {
 
 // ─── Schema ────────────────────────────────────────────────────────────────
 
+async function migrateMetricKeys(): Promise<void> {
+  const sql = getSql();
+
+  // Fix metrics stored under wrong keys due to normalizeMetricKey ordering bug.
+  // Use display_name as the ground truth since it was always correctly set by Claude.
+
+  // 'hdl' or any non-standard key whose display_name is HDL (not non-HDL)
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'hdl_cholesterol', category = 'lipid'
+    WHERE LOWER(TRIM(display_name)) = 'hdl cholesterol'
+      AND metric_key <> 'hdl_cholesterol'
+  `;
+
+  // Any display_name containing non+hdl → non_hdl_cholesterol
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'non_hdl_cholesterol', category = 'lipid'
+    WHERE LOWER(display_name) LIKE '%non%hdl%'
+      AND metric_key <> 'non_hdl_cholesterol'
+  `;
+
+  // Remove duplicate (report_id, metric_key) rows — keep the one with the lowest id
+  await sql`
+    DELETE FROM health_metrics
+    WHERE id IN (
+      SELECT id FROM (
+        SELECT id,
+               ROW_NUMBER() OVER (PARTITION BY report_id, metric_key ORDER BY id) AS rn
+        FROM health_metrics
+      ) t
+      WHERE rn > 1
+    )
+  `;
+}
+
 async function initSchema(): Promise<void> {
   const sql = getSql();
   await sql`
@@ -76,6 +112,8 @@ async function initSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_metrics_report ON health_metrics(report_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_metrics_key ON health_metrics(metric_key)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_weight_profile ON weight_history(profile_id)`;
+
+  await migrateMetricKeys();
 }
 
 let _initPromise: Promise<void> | null = null;
