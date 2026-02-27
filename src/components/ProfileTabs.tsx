@@ -10,7 +10,7 @@ interface ProfileTabsProps {
 
 export default function ProfileTabs({ profiles, activeId, onChange }: ProfileTabsProps) {
   return (
-    <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-gray-200 bg-white sticky top-0 z-10">
+    <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-gray-200 bg-white sticky top-0 z-20">
       {profiles.map((p) => (
         <button
           key={p.id}

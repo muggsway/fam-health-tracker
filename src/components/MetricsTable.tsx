@@ -30,7 +30,11 @@ function cellText(status: string | null): string {
 function refRangeStr(dp: { ref_range_text: string | null; ref_range_low: number | null; ref_range_high: number | null; unit?: string | null } | undefined): string {
   if (!dp) return '';
   const unitSuffix = dp.unit ? ` ${dp.unit}` : '';
-  if (dp.ref_range_text) return dp.ref_range_text + unitSuffix;
+  if (dp.ref_range_text) {
+    // Only append unit if not already present in the text (case-insensitive)
+    if (!dp.unit || dp.ref_range_text.toLowerCase().includes(dp.unit.toLowerCase())) return dp.ref_range_text;
+    return dp.ref_range_text + unitSuffix;
+  }
   if (dp.ref_range_low != null && dp.ref_range_high != null) return `${dp.ref_range_low}–${dp.ref_range_high}${unitSuffix}`;
   if (dp.ref_range_high != null) return `<${dp.ref_range_high}${unitSuffix}`;
   if (dp.ref_range_low != null) return `>${dp.ref_range_low}${unitSuffix}`;

@@ -78,11 +78,12 @@ function CustomDot(props: any) {
   );
 }
 
+// For compact chart cards, prefer numeric bounds over verbose ref_range_text
 function refRangeLabel(refLow: number | null, refHigh: number | null, refText: string | null): string {
-  if (refText) return refText;
   if (refLow != null && refHigh != null) return `${refLow}–${refHigh}`;
   if (refHigh != null) return `<${refHigh}`;
   if (refLow != null) return `>${refLow}`;
+  if (refText) return refText;
   return '';
 }
 
@@ -154,7 +155,7 @@ export default function PriorityChart({ config, dataPoints }: PriorityChartProps
     <div className={`bg-white rounded-xl border p-4 ${isAbnormal ? 'border-red-200' : 'border-gray-200'}`}>
       <div className="flex items-start justify-between mb-3 gap-2">
         <HoverTooltip content={config.description} position="above-left" maxWidth="max-w-[220px]">
-          <p className="text-sm font-semibold text-gray-800 leading-tight cursor-help underline decoration-dotted decoration-gray-400 underline-offset-2">{config.displayName}</p>
+          <p className="text-sm font-semibold text-gray-800 leading-tight cursor-help underline decoration-dotted decoration-gray-400 underline-offset-2 min-w-0">{config.displayName}</p>
         </HoverTooltip>
         <div className="text-right flex-shrink-0">
           <div className="flex items-baseline gap-1 justify-end">
@@ -168,7 +169,7 @@ export default function PriorityChart({ config, dataPoints }: PriorityChartProps
               </span>
             )}
           </div>
-          {rangeLabel && (
+          {(refHigh != null || refLow != null) && (
             <p className="text-xs text-gray-400 mt-0.5">Ideal: {rangeLabel} {displayUnit}</p>
           )}
         </div>

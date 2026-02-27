@@ -73,7 +73,13 @@ export async function POST(request: NextRequest) {
 
     // Save metrics
     const metrics: HealthMetric[] = parsed.metrics.map((m) => {
-      const key = normalizeMetricKey(m.metric_key);
+      // Normalize against display_name first (display_name is the literal lab text — always correct).
+      // Only fall back to metric_key normalization when display_name normalization returns a bare slug
+      // (i.e., nothing in our patterns matched it).
+      const slugifyStr = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const keyFromDisplay = normalizeMetricKey(m.display_name);
+      const keyFromMetricKey = normalizeMetricKey(m.metric_key);
+      const key = keyFromDisplay !== slugifyStr(m.display_name) ? keyFromDisplay : keyFromMetricKey;
       return {
         id: uuidv4(),
         report_id: reportId,

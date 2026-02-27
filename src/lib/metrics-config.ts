@@ -154,30 +154,37 @@ export function normalizeMetricKey(rawName: string): string {
   const name = rawName.toLowerCase().trim();
 
   const mappings: [RegExp, string][] = [
+    [/estimated.average.glucose|\beag\b/i, 'estimated_avg_glucose'],  // must precede hba1c
     [/hba1c|glycosylated hemo|glycohemo/i, 'hba1c'],
     [/fasting.*glucose|glucose.*fasting|fbs|fpg/i, 'fasting_glucose'],
     [/hs.?crp|high.*sens.*crp|c.reactive.*protein/i, 'hscrp'],
+    [/insulin.*sensitiv|\bHOMA[-.\s]?S\b|sensitiv.*insulin/i, 'insulin_sensitivity'],  // must precede insulin_fasting
+    [/homa[-.\s]?ir\b|homa.*ir|insulin.*resistance.*index/i, 'homa_ir_index'],          // must precede insulin_fasting
+    [/beta[-.\s]?cell.*function|\bHOMA[-.\s]?B\b/i, 'beta_cell_function'],              // must precede insulin_fasting
     [/insulin.*fasting|fasting.*insulin/i, 'insulin_fasting'],
     [/vitamin.*d|25.oh|25-hydroxy/i, 'vitamin_d'],
+    [/de.?ritis|ast.*alt.*ratio|sgot.*sgpt.*ratio|ast.*sgpt.*ratio/i, 'ast_alt_ratio'],  // must precede alt/ast
     [/alt|sgpt|alanine.*trans/i, 'alt_sgpt'],
     [/ast|sgot|aspartate.*trans/i, 'ast_sgot'],
     [/hemoglobin(?!.*a1c)|haemoglobin/i, 'hemoglobin'],
     [/triglyceride/i, 'triglycerides'],
     [/total.*cholesterol|cholesterol.*total/i, 'total_cholesterol'],
+    [/cholesterol.*hdl.*ratio|hdl.*cholesterol.*ratio/i, 'cholesterol_hdl_ratio'], // must precede hdl pattern
     [/non[-_\s.]?hdl/i, 'non_hdl_cholesterol'],          // must precede hdl pattern
     [/\bhdl\b|hdl.*cholesterol|cholesterol.*hdl/i, 'hdl_cholesterol'],
-    [/non[-_\s.]?ldl/i, 'non_ldl_cholesterol'],           // must precede ldl pattern
-    [/\bldl\b|ldl.*cholesterol|cholesterol.*ldl/i, 'ldl_cholesterol'],
-    [/vldl/i, 'vldl_cholesterol'],
+    [/vldl/i, 'vldl_cholesterol'],                                       // must precede ldl pattern
+    [/non[-_\s.]?ldl/i, 'non_ldl_cholesterol'],                         // must precede ldl pattern
+    [/ldl[-_\s.]?hdl.*ratio|hdl[-_\s.]?ldl.*ratio/i, 'ldl_hdl_ratio'], // must precede ldl/hdl patterns
+    [/\bldl\b|(?<!v)ldl.*cholesterol|cholesterol.*(?<!v)ldl/i, 'ldl_cholesterol'],
+    [/apo.*b.*a1|apo.*a1.*b|apo.*ratio/i, 'apo_b_a1_ratio'],  // must precede apo_b
     [/apo.*b(?!\/)/i, 'apo_b'],
     [/apo.*a1|apo.*a-1/i, 'apo_a1'],
-    [/apo.*b.*a1|apo.*ratio/i, 'apo_b_a1_ratio'],
     [/tsh/i, 'tsh'],
     [/t3.*total|total.*t3|triiodothyronine/i, 't3_total'],
     [/t4.*total|total.*t4|thyroxine/i, 't4_total'],
     [/creatinine.*serum|serum.*creatinine/i, 'creatinine'],
     [/creatinine.*urine|urine.*creatinine/i, 'creatinine_urine'],
-    [/egfr|glomerular.*filtration/i, 'egfr'],
+    [/egfr|gfr.*estimated|estimated.*gfr|glomerular.*filtration/i, 'egfr'],
     [/urea.*nitrogen|bun/i, 'bun'],
     [/urea(?!.*nitrogen)/i, 'urea'],
     [/uric.*acid/i, 'uric_acid'],
@@ -211,18 +218,30 @@ export function normalizeMetricKey(rawName: string): string {
     [/total.*protein|protein.*total/i, 'total_protein'],
     [/albumin(?!.*urine|.*creatinine)/i, 'albumin'],
     [/globulin/i, 'globulin'],
-    [/wbc|leukocyte.*count|white.*blood/i, 'wbc'],
+    [/wbc|leukocyte.*count|leucocyte.*count|white.*blood|\btlc\b|total.*leukocyte|total.*leucocyte/i, 'wbc'],
     [/rbc|red.*blood.*cell.*count|erythrocyte.*count/i, 'rbc_count'],
     [/rdw/i, 'rdw'],
+    [/hematocrit|\bpcv\b|packed.*cell.*volume/i, 'hematocrit'],
+    [/\bmpv\b|mean.*platelet.*volume/i, 'mpv'],
     [/mcv/i, 'mcv'],
     [/mch(?!c)/i, 'mch'],
     [/mchc/i, 'mchc'],
-    [/platelet.*count/i, 'platelet_count'],
+    [/platelet.*count|platelet\b/i, 'platelet_count'],
+    [/basophil.*absolute|absolute.*basophil/i, 'basophils_absolute'],
+    [/basophil.*%|basophil.*percent/i, 'basophils_percent'],
+    [/eosinophil.*absolute|absolute.*eosinophil/i, 'eosinophils_absolute'],
+    [/eosinophil.*%|eosinophil.*percent/i, 'eosinophils_percent'],
+    [/lymphocyte.*absolute|absolute.*lymphocyte/i, 'lymphocytes_absolute'],
+    [/lymphocyte.*%|lymphocyte.*percent/i, 'lymphocytes_percent'],
+    [/monocyte.*absolute|absolute.*monocyte/i, 'monocytes_absolute'],
+    [/monocyte.*%|monocyte.*percent/i, 'monocytes_percent'],
+    [/neutrophil.*absolute|absolute.*neutrophil/i, 'neutrophils_absolute'],
+    [/neutrophil.*%|neutrophil.*percent|segmented.*neutrophil/i, 'neutrophils_percent'],
     [/esr/i, 'esr'],
     [/lp.a|lipoprotein.*a\b/i, 'lipoprotein_a'],
     [/lp.pla2/i, 'lp_pla2'],
     [/testosterone/i, 'testosterone'],
-    [/insulin(?!.*fasting|.*resistance)/i, 'insulin_fasting'],
+    [/insulin(?!.*fasting|.*resistance|.*sensitiv)/i, 'insulin_fasting'],
     [/cystatin/i, 'cystatin_c'],
     [/amylase/i, 'amylase'],
     [/lipase/i, 'lipase'],
@@ -244,12 +263,17 @@ export function normalizeMetricKey(rawName: string): string {
 export function getCategoryForKey(key: string): string {
   const categoryMap: Record<string, string> = {
     hba1c: 'diabetes',
+    estimated_avg_glucose: 'diabetes',
     fasting_glucose: 'diabetes',
     insulin_fasting: 'diabetes',
+    insulin_sensitivity: 'diabetes',
+    homa_ir_index: 'diabetes',
+    beta_cell_function: 'diabetes',
     fructosamine: 'diabetes',
     blood_ketone: 'diabetes',
     alt_sgpt: 'liver',
     ast_sgot: 'liver',
+    ast_alt_ratio: 'liver',
     ggt: 'liver',
     alp: 'liver',
     bilirubin_total: 'liver',
@@ -268,7 +292,9 @@ export function getCategoryForKey(key: string): string {
     creatinine_urine: 'kidney',
     total_cholesterol: 'lipid',
     hdl_cholesterol: 'lipid',
+    cholesterol_hdl_ratio: 'lipid',
     ldl_cholesterol: 'lipid',
+    ldl_hdl_ratio: 'lipid',
     vldl_cholesterol: 'lipid',
     non_hdl_cholesterol: 'lipid',
     triglycerides: 'lipid',
@@ -306,6 +332,7 @@ export function getCategoryForKey(key: string): string {
     homocysteine: 'inflammation',
     hscrp: 'inflammation',
     hemoglobin: 'blood',
+    hematocrit: 'blood',
     rbc_count: 'blood',
     wbc: 'blood',
     rdw: 'blood',
@@ -313,6 +340,17 @@ export function getCategoryForKey(key: string): string {
     mch: 'blood',
     mchc: 'blood',
     platelet_count: 'blood',
+    mpv: 'blood',
+    basophils_absolute: 'blood',
+    basophils_percent: 'blood',
+    eosinophils_absolute: 'blood',
+    eosinophils_percent: 'blood',
+    lymphocytes_absolute: 'blood',
+    lymphocytes_percent: 'blood',
+    monocytes_absolute: 'blood',
+    monocytes_percent: 'blood',
+    neutrophils_absolute: 'blood',
+    neutrophils_percent: 'blood',
     esr: 'blood',
     testosterone: 'hormones',
     urine_pus_cells: 'urine',
@@ -323,11 +361,16 @@ export function getCategoryForKey(key: string): string {
 // One-liner tooltips shown on hover over metric name in the table
 export const METRIC_DESCRIPTIONS: Record<string, string> = {
   hba1c: 'Average blood sugar over 2–3 months. Key marker for diabetes.',
+  estimated_avg_glucose: 'Average blood sugar level estimated from HbA1c. Expressed in mg/dL for easier interpretation.',
   fasting_glucose: 'Blood sugar after overnight fast. Detects diabetes and pre-diabetes.',
   hscrp: 'High-sensitivity inflammation marker. Elevated levels increase cardiovascular risk.',
   insulin_fasting: 'Fasting insulin; high levels indicate insulin resistance.',
+  insulin_sensitivity: 'HOMA model estimate of insulin sensitivity (%S). Lower % = more resistant to insulin.',
+  homa_ir_index: 'HOMA-IR index: estimate of insulin resistance derived from fasting glucose and insulin. Higher = more resistant.',
+  beta_cell_function: 'HOMA model estimate of pancreatic beta-cell function (%B). Reflects insulin-secreting capacity.',
   vitamin_d: 'Essential for bones, immunity, and mood regulation.',
   alt_sgpt: 'Liver enzyme. Elevated when liver cells are damaged.',
+  ast_alt_ratio: 'De Ritis Ratio (AST÷ALT). Ratio >2 suggests alcoholic liver disease; <1 typical of non-alcoholic fatty liver.',
   ast_sgot: 'Enzyme in liver and heart; elevated = tissue damage.',
   ggt: 'Liver enzyme sensitive to alcohol and bile duct problems.',
   alp: 'Enzyme from liver and bone; elevated = liver or bone disease.',
@@ -336,6 +379,7 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   trig_hdl_ratio: 'Triglycerides ÷ HDL. Best simple proxy for insulin resistance; ideal <2.',
   total_cholesterol: 'Sum of all blood cholesterol fractions.',
   hdl_cholesterol: '"Good" cholesterol — removes harmful cholesterol from arteries.',
+  cholesterol_hdl_ratio: 'Ratio of total cholesterol to HDL. Lower is better; ideal is below 4.',
   ldl_cholesterol: '"Bad" cholesterol — deposits in artery walls.',
   vldl_cholesterol: 'Carries triglycerides; precursor to LDL.',
   non_hdl_cholesterol: 'All atherogenic cholesterol fractions except HDL.',
@@ -426,6 +470,18 @@ export const METRIC_ANALYSIS: Record<string, { high: string; low: string }> = {
     high: 'Insulin resistance likely. Reduce carbs, try intermittent fasting, increase strength training.',
     low: 'Normal or low — generally favourable.',
   },
+  insulin_sensitivity: {
+    high: 'High insulin sensitivity — excellent. Cells respond well to insulin; low diabetes risk.',
+    low: 'Low insulin sensitivity (high resistance). Cut refined carbs, exercise regularly, reduce visceral fat.',
+  },
+  homa_ir_index: {
+    high: 'Elevated HOMA-IR indicates insulin resistance. Reduce refined carbs, increase activity and strength training.',
+    low: 'Low HOMA-IR — good insulin sensitivity.',
+  },
+  beta_cell_function: {
+    high: 'High beta-cell output — may reflect compensatory insulin secretion in early insulin resistance.',
+    low: 'Reduced beta-cell function — pancreas producing less insulin. Monitor blood sugar closely; consult a doctor.',
+  },
   vitamin_d: {
     high: 'Possible excess supplementation. Reduce D3 dose; toxicity above 150 ng/mL.',
     low: 'Deficient. Supplement 2000–4000 IU D3 daily, get sunlight, eat fatty fish.',
@@ -433,6 +489,10 @@ export const METRIC_ANALYSIS: Record<string, { high: string; low: string }> = {
   alt_sgpt: {
     high: 'Liver stress or damage. Avoid alcohol, reduce fatty food, review medications with doctor.',
     low: 'Very low — generally normal.',
+  },
+  ast_alt_ratio: {
+    high: 'Ratio >1 suggests possible alcoholic or severe liver disease. Consult a doctor.',
+    low: 'Ratio <1 is typical in non-alcoholic fatty liver disease. Monitor liver enzymes.',
   },
   ast_sgot: {
     high: 'Liver or muscle damage. Investigate cause with doctor.',
@@ -461,6 +521,10 @@ export const METRIC_ANALYSIS: Record<string, { high: string; low: string }> = {
   hdl_cholesterol: {
     high: 'Very high HDL — generally protective. Extremely high (>100) warrants investigation.',
     low: 'Low — raises heart disease risk. Exercise aerobically, eat olive oil, nuts, and fatty fish.',
+  },
+  cholesterol_hdl_ratio: {
+    high: 'Ratio is above the ideal — indicates poor cholesterol balance. Increase HDL through aerobic exercise and healthy fats; reduce saturated fat and refined carbs.',
+    low: 'Optimal — favourable cholesterol ratio.',
   },
   ldl_cholesterol: {
     high: 'Increases artery plaque risk. Reduce saturated fat and refined carbs; increase soluble fibre.',

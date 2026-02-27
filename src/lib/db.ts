@@ -23,11 +23,23 @@ async function migrateMetricKeys(): Promise<void> {
   // Fix metrics stored under wrong keys due to normalizeMetricKey ordering bug.
   // Use display_name as the ground truth since it was always correctly set by Claude.
 
-  // 'hdl' or any non-standard key whose display_name is HDL (not non-HDL)
+  // Ratio metrics that were incorrectly mapped to hdl_cholesterol
+  // e.g. "Cholesterol : HDL Ratio" matched `cholesterol.*hdl` pattern
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'cholesterol_hdl_ratio', category = 'lipid'
+    WHERE LOWER(display_name) LIKE '%cholesterol%hdl%ratio%'
+       OR LOWER(display_name) LIKE '%chol%hdl%ratio%'
+       OR (LOWER(display_name) LIKE '%cholesterol%hdl%' AND LOWER(display_name) NOT LIKE '%non%')
+  `;
+
+  // HDL Cholesterol rows stored under a wrong key (standalone HDL)
   await sql`
     UPDATE health_metrics
     SET metric_key = 'hdl_cholesterol', category = 'lipid'
-    WHERE LOWER(TRIM(display_name)) = 'hdl cholesterol'
+    WHERE LOWER(display_name) LIKE '%hdl cholesterol%'
+      AND LOWER(display_name) NOT LIKE '%non%hdl%'
+      AND LOWER(display_name) NOT LIKE '%ratio%'
       AND metric_key <> 'hdl_cholesterol'
   `;
 
@@ -37,6 +49,123 @@ async function migrateMetricKeys(): Promise<void> {
     SET metric_key = 'non_hdl_cholesterol', category = 'lipid'
     WHERE LOWER(display_name) LIKE '%non%hdl%'
       AND metric_key <> 'non_hdl_cholesterol'
+  `;
+
+  // Apo B / Apo A1 ratio incorrectly stored as apo_b (pattern ordering bug)
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'apo_b_a1_ratio', category = 'lipid'
+    WHERE (LOWER(display_name) LIKE '%apo%b%a1%'
+        OR LOWER(display_name) LIKE '%apo%a1%b%'
+        OR (LOWER(display_name) LIKE '%apo%' AND LOWER(display_name) LIKE '%ratio%'))
+      AND metric_key <> 'apo_b_a1_ratio'
+  `;
+
+  // De Ritis / AST:ALT ratio incorrectly stored as alt_sgpt or ast_sgot
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'ast_alt_ratio', category = 'liver'
+    WHERE (LOWER(display_name) LIKE '%de ritis%'
+        OR LOWER(display_name) LIKE '%de-ritis%'
+        OR (LOWER(display_name) LIKE '%ast%' AND LOWER(display_name) LIKE '%alt%' AND LOWER(display_name) LIKE '%ratio%')
+        OR (LOWER(display_name) LIKE '%sgot%' AND LOWER(display_name) LIKE '%sgpt%' AND LOWER(display_name) LIKE '%ratio%'))
+      AND metric_key <> 'ast_alt_ratio'
+  `;
+
+  // Estimated Average Glucose (eAG) incorrectly stored as hba1c
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'estimated_avg_glucose', category = 'diabetes'
+    WHERE (LOWER(display_name) LIKE '%estimated average glucose%'
+        OR LOWER(display_name) LIKE '%estimated%glucose%')
+      AND metric_key <> 'estimated_avg_glucose'
+  `;
+
+  // Insulin Sensitivity (%S) incorrectly stored as insulin_fasting
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'insulin_sensitivity', category = 'diabetes'
+    WHERE (LOWER(display_name) LIKE '%insulin%sensitiv%'
+        OR LOWER(display_name) LIKE '%sensitiv%insulin%')
+      AND metric_key <> 'insulin_sensitivity'
+  `;
+
+  // HOMA IR Index incorrectly stored as insulin_fasting
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'homa_ir_index', category = 'diabetes'
+    WHERE (LOWER(display_name) LIKE '%homa%ir%'
+        OR LOWER(display_name) LIKE '%insulin%resistance%index%')
+      AND metric_key <> 'homa_ir_index'
+  `;
+
+  // Beta Cell Function (%B) incorrectly stored as insulin_fasting
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'beta_cell_function', category = 'diabetes'
+    WHERE (LOWER(display_name) LIKE '%beta%cell%function%'
+        OR LOWER(display_name) LIKE '%beta%cell%funct%')
+      AND metric_key <> 'beta_cell_function'
+  `;
+
+  // VLDL Cholesterol incorrectly stored as ldl_cholesterol
+  // ("ldl.*cholesterol" regex matched "VLDL Cholesterol" because "ldl" is a substring of "vldl")
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'vldl_cholesterol', category = 'lipid'
+    WHERE LOWER(display_name) LIKE '%vldl%'
+      AND metric_key <> 'vldl_cholesterol'
+  `;
+
+  // Microalbumin (Urine) incorrectly stored as albumin
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'urine_microalbumin', category = 'kidney'
+    WHERE LOWER(display_name) LIKE '%microalbumin%'
+      AND LOWER(display_name) LIKE '%urine%'
+      AND metric_key <> 'urine_microalbumin'
+  `;
+
+  // eGFR fragmentation: gfr / gfr_estimated → egfr (canonical key)
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'egfr', category = 'kidney'
+    WHERE metric_key IN ('gfr', 'gfr_estimated')
+      AND metric_key <> 'egfr'
+  `;
+
+  // WBC/TLC fragmentation → wbc (canonical key)
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'wbc', category = 'blood'
+    WHERE metric_key IN ('tlc', 'total_leucocyte_count', 'total_leukocyte_count')
+      AND metric_key <> 'wbc'
+  `;
+
+  // PCV / hematocrit fragmentation → hematocrit (canonical key)
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'hematocrit', category = 'blood'
+    WHERE metric_key IN ('pcv', 'packed_cell_volume', 'pcv_hematocrit')
+      AND metric_key <> 'hematocrit'
+  `;
+
+  // MPV fragmentation: mean_platelet_volume → mpv (canonical key)
+  await sql`
+    UPDATE health_metrics
+    SET metric_key = 'mpv', category = 'blood'
+    WHERE metric_key = 'mean_platelet_volume'
+      AND metric_key <> 'mpv'
+  `;
+
+  // CBC absolute count fragmentation: absolute_*_count → *s_absolute (canonical key)
+  await sql`
+    UPDATE health_metrics SET metric_key = 'basophils_absolute', category = 'blood'
+    WHERE metric_key = 'absolute_basophil_count' AND metric_key <> 'basophils_absolute'
+  `;
+  await sql`
+    UPDATE health_metrics SET metric_key = 'eosinophils_absolute', category = 'blood'
+    WHERE metric_key = 'absolute_eosinophil_count' AND metric_key <> 'eosinophils_absolute'
   `;
 
   // Remove duplicate (report_id, metric_key) rows — keep the one with the lowest id

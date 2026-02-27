@@ -19,6 +19,34 @@ export async function parsePDFReport(pdfText: string): Promise<ParsedReportData>
 INSTRUCTIONS:
 1. Extract every measurable lab value you find (blood tests, urine tests, hormones, vitamins, etc.)
 2. For each metric, determine the canonical metric_key (snake_case, lowercase). Use standard names like: hba1c, fasting_glucose, alt_sgpt, ast_sgot, tsh, vitamin_d, vitamin_b12, hemoglobin, triglycerides, total_cholesterol, hdl_cholesterol, ldl_cholesterol, creatinine, etc.
+
+   CRITICAL — HOMA IR Panel: These metrics share the word "insulin" but must be mapped to DISTINCT keys:
+   - "Insulin, Serum, Fasting" / "Fasting Insulin" / "Insulin (Fasting)" → metric_key: "insulin_fasting"  (the actual serum insulin concentration, unit µU/mL or uU/mL)
+   - "Insulin Sensitivity (%S)" / "Insulin Sensitivity" → metric_key: "insulin_sensitivity"  (percentage, unit %)
+   - "Beta Cell Function (%B)" / "Beta Cell Function" → metric_key: "beta_cell_function"  (percentage, unit %)
+   - "HOMA IR" / "HOMA IR Index" / "Insulin Resistance Index" → metric_key: "homa_ir_index"  (dimensionless index)
+   Do NOT use "insulin_fasting" for sensitivity, beta-cell function, or HOMA IR index metrics.
+
+   CRITICAL — Ratio vs Component metrics: Do NOT reuse the same metric_key for a ratio and the component it is derived from:
+   - "Apolipoprotein B / Apolipoprotein A1 Ratio" → metric_key: "apo_b_a1_ratio"  (NOT "apo_b")
+   - "De Ritis Ratio" / "AST/ALT Ratio" / "SGOT/SGPT Ratio" → metric_key: "ast_alt_ratio"  (NOT "alt_sgpt")
+   - "Cholesterol / HDL Ratio" → metric_key: "cholesterol_hdl_ratio"  (NOT "hdl_cholesterol")
+   - "LDL / HDL Ratio" → metric_key: "ldl_hdl_ratio"  (NOT "ldl_cholesterol")
+   - "Estimated Average Glucose (eAG)" → metric_key: "estimated_avg_glucose"  (NOT "hba1c")
+
+   CRITICAL — Cholesterol sub-fractions: These share "cholesterol" and partial letter overlap — use the EXACT key:
+   - "VLDL Cholesterol" → metric_key: "vldl_cholesterol"  (NOT "ldl_cholesterol" — "vldl" contains "ldl" as a substring)
+   - "LDL Cholesterol" / "LDL Cholesterol (Calculated)" → metric_key: "ldl_cholesterol"
+   - "HDL Cholesterol" → metric_key: "hdl_cholesterol"
+   - "Non-HDL Cholesterol" → metric_key: "non_hdl_cholesterol"
+
+   CRITICAL — Albumin vs Microalbumin:
+   - "Albumin" (serum protein, g/dL or g/L) → metric_key: "albumin"
+   - "Microalbumin (Urine)" / "Urine Microalbumin" → metric_key: "urine_microalbumin"  (NOT "albumin")
+
+   CRITICAL — eGFR / GFR: Always use metric_key: "egfr" for any Estimated Glomerular Filtration Rate metric, regardless of how the lab labels it ("GFR Estimated", "eGFR", "Glomerular Filtration Rate (eGFR)", etc.)
+
+   CRITICAL — WBC / TLC: "Total Leukocyte Count (TLC)" and "Total Leucocyte Count (WBC)" → metric_key: "wbc"
 3. Determine status: 'high' if value > ref_range_high, 'low' if value < ref_range_low, 'normal' otherwise. Set to null if no reference range.
    CRITICAL: ref_range_low and ref_range_high must always be in the same units as the value field. If the lab report states the reference range in different units (e.g., value is in mg/dL but range is in g/L), convert the range to match the value's unit before outputting.
 4. For report_date: extract year and month and return as YYYY-MM format. If you cannot determine the date, set report_date to null and needs_date to true.
