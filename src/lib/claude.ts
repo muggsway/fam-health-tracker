@@ -20,6 +20,7 @@ INSTRUCTIONS:
 1. Extract every measurable lab value you find (blood tests, urine tests, hormones, vitamins, etc.)
 2. For each metric, determine the canonical metric_key (snake_case, lowercase). Use standard names like: hba1c, fasting_glucose, alt_sgpt, ast_sgot, tsh, vitamin_d, vitamin_b12, hemoglobin, triglycerides, total_cholesterol, hdl_cholesterol, ldl_cholesterol, creatinine, etc.
 3. Determine status: 'high' if value > ref_range_high, 'low' if value < ref_range_low, 'normal' otherwise. Set to null if no reference range.
+   CRITICAL: ref_range_low and ref_range_high must always be in the same units as the value field. If the lab report states the reference range in different units (e.g., value is in mg/dL but range is in g/L), convert the range to match the value's unit before outputting.
 4. For report_date: extract year and month and return as YYYY-MM format. If you cannot determine the date, set report_date to null and needs_date to true.
 5. Extract the lab/hospital name as lab_name.
 6. Extract the patient name as patient_name.
