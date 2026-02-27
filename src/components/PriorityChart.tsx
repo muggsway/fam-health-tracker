@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import type { MetricDataPoint } from '@/types';
 import type { PriorityMetricConfig } from '@/lib/metrics-config';
+import HoverTooltip from './Tooltip';
 
 interface PriorityChartProps {
   config: PriorityMetricConfig;
@@ -113,9 +114,11 @@ export default function PriorityChart({ config, dataPoints }: PriorityChartProps
   const refPoint = [...dataPoints].reverse().find(
     (d) => d.ref_range_low != null || d.ref_range_high != null
   );
-  const refLow = refPoint?.ref_range_low ?? null;
-  const refHigh = refPoint?.ref_range_high ?? null;
-  const refText = refPoint?.ref_range_text ?? null;
+  const refLow = config.refRangeLowOverride ?? refPoint?.ref_range_low ?? null;
+  const refHigh = config.refRangeHighOverride ?? refPoint?.ref_range_high ?? null;
+  const refText = (config.refRangeHighOverride != null || config.refRangeLowOverride != null)
+    ? null
+    : (refPoint?.ref_range_text ?? null);
   // Unit from the data point (may differ from config, e.g. Vitamin D ng/mL vs nmol/L)
   const displayUnit = refPoint?.unit ?? config.unit;
 
@@ -150,7 +153,9 @@ export default function PriorityChart({ config, dataPoints }: PriorityChartProps
   return (
     <div className={`bg-white rounded-xl border p-4 ${isAbnormal ? 'border-red-200' : 'border-gray-200'}`}>
       <div className="flex items-start justify-between mb-3 gap-2">
-        <p className="text-sm font-semibold text-gray-800 leading-tight">{config.displayName}</p>
+        <HoverTooltip content={config.description} position="above-left" maxWidth="max-w-[220px]">
+          <p className="text-sm font-semibold text-gray-800 leading-tight cursor-help underline decoration-dotted decoration-gray-400 underline-offset-2">{config.displayName}</p>
+        </HoverTooltip>
         <div className="text-right flex-shrink-0">
           <div className="flex items-baseline gap-1 justify-end">
             <span className={`text-base font-bold ${isAbnormal ? 'text-red-600' : 'text-gray-900'}`}>

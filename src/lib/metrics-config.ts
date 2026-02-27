@@ -5,7 +5,14 @@ export interface PriorityMetricConfig {
   description: string;
   higherIsBetter: boolean | null; // null = optimal range (e.g. glucose)
   chartColor: string;
+  refRangeHighOverride?: number;
+  refRangeLowOverride?: number;
 }
+
+// Hardcoded reference range overrides (applied on top of lab-reported ranges)
+export const METRIC_REF_OVERRIDES: Record<string, { refLow?: number; refHigh?: number }> = {
+  insulin_fasting: { refHigh: 15 },
+};
 
 export const PRIORITY_METRICS: PriorityMetricConfig[] = [
   {
@@ -39,6 +46,7 @@ export const PRIORITY_METRICS: PriorityMetricConfig[] = [
     description: 'Fasting insulin levels. Elevated levels indicate insulin resistance.',
     higherIsBetter: false,
     chartColor: '#7c3aed',
+    refRangeHighOverride: 15,
   },
   {
     key: 'vitamin_d',

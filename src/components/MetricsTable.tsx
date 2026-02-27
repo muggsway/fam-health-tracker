@@ -2,7 +2,7 @@
 
 import type { MetricsByCategory, MetricWithHistory, MetricDataPoint } from '@/types';
 import type { MetricMetadataRow } from '@/lib/db';
-import { CATEGORY_LABELS, CATEGORY_ORDER, METRIC_DESCRIPTIONS, METRIC_ANALYSIS } from '@/lib/metrics-config';
+import { CATEGORY_LABELS, CATEGORY_ORDER, METRIC_DESCRIPTIONS, METRIC_ANALYSIS, METRIC_REF_OVERRIDES } from '@/lib/metrics-config';
 import MethodWarningBadge from './MethodWarningBadge';
 import Tooltip from './Tooltip';
 
@@ -193,8 +193,9 @@ export default function MetricsTable({ metricsByCategory, metricMetadata = {} }:
                     const refDp = [...metric.dataPoints].reverse().find(
                       dp => dp.ref_range_low != null || dp.ref_range_high != null
                     );
-                    const refLow = refDp?.ref_range_low ?? null;
-                    const refHigh = refDp?.ref_range_high ?? null;
+                    const override = METRIC_REF_OVERRIDES[metric.metric_key];
+                    const refLow = override?.refLow ?? refDp?.ref_range_low ?? null;
+                    const refHigh = override?.refHigh ?? refDp?.ref_range_high ?? null;
 
                     const latestStatus = computeStatus(latestDp?.value ?? null, refLow, refHigh);
                     const analysis = analysisText(metric.metric_key, latestStatus, latestDp?.advice);
@@ -258,7 +259,9 @@ export default function MetricsTable({ metricsByCategory, metricMetadata = {} }:
                           );
                         })}
                         <td className="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap">
-                          {refRangeStr(refDp)}
+                          {override
+                            ? refRangeStr({ ref_range_low: refLow, ref_range_high: refHigh, ref_range_text: null, unit: refDp?.unit })
+                            : refRangeStr(refDp)}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-gray-500 min-w-[200px] max-w-[280px]">
                           {analysis ? (
