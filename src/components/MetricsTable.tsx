@@ -1,6 +1,6 @@
 'use client';
 
-import type { MetricsByCategory } from '@/types';
+import type { MetricsByCategory, MetricWithHistory, MetricDataPoint } from '@/types';
 import type { MetricMetadataRow } from '@/lib/db';
 import { CATEGORY_LABELS, CATEGORY_ORDER, METRIC_DESCRIPTIONS, METRIC_ANALYSIS } from '@/lib/metrics-config';
 import MethodWarningBadge from './MethodWarningBadge';
@@ -44,6 +44,48 @@ function computeStatus(value: number | null, refLow: number | null, refHigh: num
   if (refLow != null && value < refLow) return 'low';
   if (refLow != null || refHigh != null) return 'normal';
   return null;
+}
+
+function buildTrigHdlRatioRow(metricsByCategory: MetricsByCategory): MetricWithHistory | null {
+  const lipids = metricsByCategory['lipid'] ?? [];
+  const trigMetric = lipids.find(m => m.metric_key === 'triglycerides');
+  const hdlMetric = lipids.find(m => m.metric_key === 'hdl_cholesterol');
+  if (!trigMetric || !hdlMetric) return null;
+
+  const hdlByDate = new Map(hdlMetric.dataPoints.map(d => [d.report_date, d.value]));
+  const dataPoints: MetricDataPoint[] = trigMetric.dataPoints
+    .filter(d => d.value != null && hdlByDate.get(d.report_date) != null)
+    .map(d => {
+      const ratio = Math.round(((d.value as number) / (hdlByDate.get(d.report_date) as number)) * 100) / 100;
+      return {
+        report_date: d.report_date,
+        report_id: d.report_id,
+        lab_name: d.lab_name,
+        value: ratio,
+        unit: null,
+        ref_range_low: null,
+        ref_range_high: 2,
+        ref_range_text: '<2',
+        status: ratio > 2 ? 'high' : 'normal',
+        method: null,
+        advice: ratio > 2
+          ? `Trig/HDL ratio of ${ratio} is above the ideal of <2, indicating insulin resistance and elevated cardiovascular risk.`
+          : null,
+      };
+    });
+
+  if (dataPoints.length === 0) return null;
+  const sorted = [...dataPoints].sort((a, b) => a.report_date.localeCompare(b.report_date));
+  return {
+    metric_key: 'trig_hdl_ratio',
+    display_name: 'Trig / HDL Ratio',
+    category: 'lipid',
+    unit: null,
+    dataPoints: sorted,
+    latest: sorted[sorted.length - 1],
+    previous: sorted.length > 1 ? sorted[sorted.length - 2] : null,
+    methodChanged: false,
+  };
 }
 
 // Category-aware fallback descriptions for metrics not in METRIC_DESCRIPTIONS
@@ -102,8 +144,19 @@ export default function MetricsTable({ metricsByCategory, metricMetadata = {} }:
   return (
     <div className="space-y-6">
       {categories.map(cat => {
-        const metrics = metricsByCategory[cat];
+        let metrics = metricsByCategory[cat];
         if (!metrics?.length) return null;
+
+        // Inject computed Trig/HDL ratio row into Lipid Profile
+        if (cat === 'lipid') {
+          const ratioRow = buildTrigHdlRatioRow(metricsByCategory);
+          if (ratioRow) {
+            const trigIdx = metrics.findIndex(m => m.metric_key === 'triglycerides');
+            metrics = trigIdx >= 0
+              ? [...metrics.slice(0, trigIdx + 1), ratioRow, ...metrics.slice(trigIdx + 1)]
+              : [...metrics, ratioRow];
+          }
+        }
 
         return (
           <div key={cat}>
