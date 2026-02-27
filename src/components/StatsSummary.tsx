@@ -195,12 +195,24 @@ export default function StatsSummary({ metricsByCategory, lastReportDate }: Stat
   const allMetrics = Object.values(metricsByCategory).flat();
   if (allMetrics.length === 0) return null;
 
-  const abnormal = allMetrics.filter(m => {
+  // Only count metrics that appear in the latest report
+  const latestMetrics = lastReportDate
+    ? allMetrics.filter(m => m.latest?.report_date === lastReportDate)
+    : allMetrics;
+
+  const abnormal = latestMetrics.filter(m => {
     const s = getStatus(m);
     return s === 'high' || s === 'low';
   }).length;
 
-  const summary = buildSummary(metricsByCategory);
+  // Build summary narrative from latest-report metrics only
+  const latestByCategory: typeof metricsByCategory = {};
+  for (const m of latestMetrics) {
+    const cat = m.category ?? 'other';
+    if (!latestByCategory[cat]) latestByCategory[cat] = [];
+    latestByCategory[cat].push(m);
+  }
+  const summary = buildSummary(latestByCategory);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -227,7 +239,7 @@ export default function StatsSummary({ metricsByCategory, lastReportDate }: Stat
             {abnormal}
           </p>
           <p className="text-xs text-gray-400 mt-1.5 leading-snug">
-            out of {allMetrics.length}<br />
+            out of {latestMetrics.length}<br />
             <span>out of range</span>
           </p>
         </div>
