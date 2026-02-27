@@ -73,12 +73,12 @@ export const PRIORITY_METRICS: PriorityMetricConfig[] = [
     chartColor: '#f59e0b',
   },
   {
-    key: 'total_cholesterol',
-    displayName: 'Total Cholesterol',
-    unit: 'mg/dL',
-    description: 'Total cholesterol in the blood. Part of cardiovascular risk assessment.',
+    key: 'trig_hdl_ratio',
+    displayName: 'Trig / HDL Ratio',
+    unit: '',
+    description: 'Triglycerides ÷ HDL cholesterol. Strong proxy for insulin resistance and cardiovascular risk.',
     higherIsBetter: false,
-    chartColor: '#3b82f6',
+    chartColor: '#e11d48',
   },
   {
     key: 'apo_b',
@@ -324,6 +324,7 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   alp: 'Enzyme from liver and bone; elevated = liver or bone disease.',
   hemoglobin: 'Oxygen-carrying protein in red blood cells. Low = anaemia.',
   triglycerides: 'Blood fats from diet and liver. High = cardiovascular risk.',
+  trig_hdl_ratio: 'Triglycerides ÷ HDL. Best simple proxy for insulin resistance; ideal <2.',
   total_cholesterol: 'Sum of all blood cholesterol fractions.',
   hdl_cholesterol: '"Good" cholesterol — removes harmful cholesterol from arteries.',
   ldl_cholesterol: '"Bad" cholesterol — deposits in artery walls.',
@@ -603,6 +604,10 @@ export const METRIC_ANALYSIS: Record<string, { high: string; low: string }> = {
   amylase: {
     high: 'Elevated — possible pancreatitis or salivary gland issue. Consult a doctor.',
     low: 'Low — generally not concerning.',
+  },
+  trig_hdl_ratio: {
+    high: 'Ratio above 2 indicates insulin resistance and elevated cardiovascular risk. Cut sugar, refined carbs, and alcohol; add omega-3s and strength training.',
+    low: 'Optimal — favourable metabolic and cardiovascular profile.',
   },
   apo_b_a1_ratio: {
     high: 'Unfavourable ratio — high cardiovascular risk. Reduce saturated fat and refined carbs; exercise regularly.',
