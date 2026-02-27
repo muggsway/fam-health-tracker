@@ -27,6 +27,18 @@ export default function ProfileDashboard({ profileId }: ProfileDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [weightRefreshKey, setWeightRefreshKey] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDeleteReport(reportId: string, reportDate: string) {
+    if (!confirm(`Delete the ${reportDate} report? This cannot be undone.`)) return;
+    setDeletingId(reportId);
+    try {
+      await fetch(`/api/reports/${reportId}`, { method: 'DELETE' });
+      await loadData();
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -90,6 +102,35 @@ export default function ProfileDashboard({ profileId }: ProfileDashboardProps) {
         <CheckupDueBanner lastReportDate={lastReportDate} />
         {hasMetrics && <MissingMetricsBanner metricsByCategory={metricsByCategory} />}
       </div>
+
+      {reports.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Reports</span>
+          {reports.map((r) => (
+            <span key={r.id} className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1 text-xs text-gray-600">
+              {r.report_date}
+              {r.lab_name && <span className="text-gray-400">· {r.lab_name}</span>}
+              <button
+                onClick={() => handleDeleteReport(r.id, r.report_date)}
+                disabled={deletingId === r.id}
+                className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                title="Delete report"
+              >
+                {deletingId === r.id ? (
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                )}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {hasMetrics && (
         <StatsSummary
