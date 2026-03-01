@@ -47,6 +47,44 @@ INSTRUCTIONS:
    CRITICAL — eGFR / GFR: Always use metric_key: "egfr" for any Estimated Glomerular Filtration Rate metric, regardless of how the lab labels it ("GFR Estimated", "eGFR", "Glomerular Filtration Rate (eGFR)", etc.)
 
    CRITICAL — WBC / TLC: "Total Leukocyte Count (TLC)" and "Total Leucocyte Count (WBC)" → metric_key: "wbc"
+
+   CRITICAL — CBC sub-metrics: Each CBC parameter is a DISTINCT metric with its own key. NEVER use the parent metric key for a derived sub-metric:
+   - "Hemoglobin" (g/dL) → metric_key: "hemoglobin"
+   - "Mean Corpuscular Hemoglobin (MCH)" / "MCH" (pg) → metric_key: "mch"  (NOT "hemoglobin" — MCH is a derived index, not the hemoglobin concentration)
+   - "Mean Corpuscular Hemoglobin Concentration (MCHC)" (g/dL) → metric_key: "mchc"  (NOT "hemoglobin")
+   - "Mean Corpuscular Volume (MCV)" (fL) → metric_key: "mcv"
+   - "Red Cell Distribution Width (RDW-CV)" / "RDW" (%) → metric_key: "rdw"
+   - "Red Cell Distribution Width - SD (RDW-SD)" (fL) → metric_key: "rdw_sd"  (NOT "rdw" — different unit and measurement)
+   - "Red Cell Distribution Width Index (RDWI)" → metric_key: "rdwi"  (NOT "rdw")
+   - "Platelet Distribution Width (PDW)" → metric_key: "pdw"  (NOT "platelet_count")
+   - "Platelet to Large Cell Ratio (PLCR)" / "P-LCR" → metric_key: "plcr"  (NOT "platelet_count")
+   - "Nucleated Red Blood Cells %" / "NRBC%" → metric_key: "nrbc_percent"  (NOT "rbc_count")
+   - "Nucleated Red Blood Cells (Absolute)" / "NRBC" (count) → metric_key: "nrbc"  (NOT "rbc_count")
+   - "Mean Platelet Volume (MPV)" → metric_key: "mpv"  (NOT "platelet_count")
+
+   CRITICAL — Bilirubin fractions: Use the EXACT key for each fraction:
+   - "Bilirubin (Direct)" / "Direct Bilirubin" → metric_key: "bilirubin_direct"
+   - "Bilirubin (Indirect)" / "Indirect Bilirubin" → metric_key: "bilirubin_indirect"  (NOT "bilirubin_direct")
+   - "Bilirubin (Total)" / "Total Bilirubin" → metric_key: "bilirubin_total"
+
+   CRITICAL — Kidney function ratios: Do NOT use the base metric key for a derived ratio:
+   - "BUN/Creatinine Ratio" / "BUN/Sr. Creatinine Ratio" → metric_key: "bun_creatinine_ratio"  (NOT "bun")
+   - "Urea/Creatinine Ratio" / "Urea/Sr. Creatinine Ratio" → metric_key: "urea_creatinine_ratio"  (NOT "urea")
+
+   CRITICAL — Protein ratios: Do NOT use the component key for a ratio:
+   - "Albumin/Globulin Ratio" / "Serum ALB/Globulin Ratio" / "A/G Ratio" → metric_key: "ag_ratio"  (NOT "albumin" or "globulin")
+
+   CRITICAL — Lipid ratios (extending the ratio rule above):
+   - "Triglyceride/HDL Ratio" / "Trig/HDL Ratio" → metric_key: "trig_hdl_ratio"  (NOT "triglycerides")
+   - "LDL/HDL Ratio" → metric_key: "ldl_hdl_ratio"  (NOT "ldl_cholesterol" or "hdl_cholesterol")
+   - "HDL/LDL Ratio" → metric_key: "hdl_ldl_ratio"  (NOT "hdl_cholesterol" or "ldl_cholesterol")
+
+   CRITICAL — Trace elements and miscellaneous: Each element/compound has its own key; NEVER reuse a clinical chemistry key:
+   - "Cobalt" → metric_key: "cobalt"  (NOT "alt_sgpt" or any liver marker)
+   - "Chromium" → metric_key: "chromium"
+   - "Selenium" → metric_key: "selenium"
+   - "Manganese" → metric_key: "manganese"
+
 3. Determine status: 'high' if value > ref_range_high, 'low' if value < ref_range_low, 'normal' otherwise. Set to null if no reference range.
    CRITICAL: ref_range_low and ref_range_high must always be in the same units as the value field. If the lab report states the reference range in different units (e.g., value is in mg/dL but range is in g/L), convert the range to match the value's unit before outputting.
 4. For report_date: extract year and month and return as YYYY-MM format. If you cannot determine the date, set report_date to null and needs_date to true.
@@ -54,9 +92,6 @@ INSTRUCTIONS:
 6. Extract the patient name as patient_name.
 7. Extract the patient's date of birth as date_of_birth in YYYY-MM-DD format. Set to null if not found in the report.
 8. For category, use one of: diabetes, liver, kidney, lipid, thyroid, vitamins, blood, inflammation, hormones, urine, other
-9. For each metric, write two plain-English fields for a non-medical audience:
-   - description: 1 sentence explaining what this marker measures
-   - advice: If the value is outside the reference range, write 1-2 sentences of specific, value-aware interpretation — mention the actual value, how far it deviates, and what it implies clinically. Calibrate severity: a value slightly above range reads differently from one that is 3x the limit. Set to null if the value is within the normal range.
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -77,9 +112,7 @@ Return ONLY valid JSON with this exact structure:
       "status": "high",
       "category": "diabetes",
       "method": "HPLC or null",
-      "notes": "any relevant notes or null",
-      "description": "Measures average blood sugar over the past 2–3 months.",
-      "advice": "HbA1c of 5.7% is just above the normal upper limit of 5.6%, placing it in the prediabetic range — early lifestyle changes like diet and exercise can bring this back to normal."
+      "notes": "any relevant notes or null"
     }
   ]
 }
@@ -92,6 +125,10 @@ ${pdfText}`;
     max_tokens: 16000,
     messages: [{ role: 'user', content: prompt }],
   });
+
+  if (message.stop_reason === 'max_tokens') {
+    throw new Error('Claude response was truncated (max_tokens limit hit). The report may have too many metrics.');
+  }
 
   const responseText = message.content
     .filter((b) => b.type === 'text')
@@ -108,6 +145,69 @@ ${pdfText}`;
 
   const parsed = JSON.parse(jsonMatch[1]) as ParsedReportData;
   return parsed;
+}
+
+// ─── Metric Annotations (descriptions + advice) ────────────────────────────
+
+type MetricInput = {
+  metric_key: string;
+  display_name: string;
+  value: number | null;
+  unit: string | null;
+  status: string | null;
+};
+
+type MetricAnnotation = {
+  description: string | null;
+  advice: string | null;
+};
+
+export async function generateMetricAnnotations(
+  metrics: MetricInput[]
+): Promise<Record<string, MetricAnnotation>> {
+  const client = getClient();
+
+  const metricsText = metrics
+    .map((m) => `${m.metric_key} | ${m.display_name} | ${m.value ?? 'N/A'} ${m.unit ?? ''} | ${m.status ?? 'unknown'}`)
+    .join('\n');
+
+  const prompt = `You are a medical assistant writing plain-English explanations for lab results shown to patients.
+
+For each metric below, provide:
+- description: 1 sentence (≤15 words) explaining what this marker measures — for ALL metrics
+- advice: 1-2 sentences of actionable, value-aware guidance — ONLY for "high" or "low" status; null for "normal" or "unknown"
+
+Return ONLY a valid JSON array (no markdown, no code block):
+[{"metric_key":"hba1c","description":"Measures average blood sugar over the past 2–3 months.","advice":"HbA1c of 5.7% is just above normal — early diet changes can reverse prediabetes."},...]
+
+Metrics (key | display name | value | status):
+${metricsText}`;
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 8192,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const responseText = message.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+
+  const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+    responseText.match(/(\[[\s\S]*\])/);
+
+  if (!jsonMatch) return {};
+
+  const annotations = JSON.parse(jsonMatch[1]) as Array<{
+    metric_key: string;
+    description: string | null;
+    advice: string | null;
+  }>;
+
+  return Object.fromEntries(
+    annotations.map((a) => [a.metric_key, { description: a.description ?? null, advice: a.advice ?? null }])
+  );
 }
 
 // ─── Health Summary ────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { createReport, createMetrics, reportDateExistsForProfile, getProfileById, updateProfile, upsertMetricMetadata } from '@/lib/db';
 import { extractTextFromPDF } from '@/lib/pdf-extractor';
-import { parsePDFReport } from '@/lib/claude';
+import { parsePDFReport, generateMetricAnnotations } from '@/lib/claude';
 import { normalizeMetricKey, getCategoryForKey } from '@/lib/metrics-config';
 import type { HealthMetric } from '@/types';
 
@@ -61,6 +61,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate descriptions + advice in a separate lightweight call (non-fatal)
+    let annotations: Record<string, { description: string | null; advice: string | null }> = {};
+    try {
+      annotations = await generateMetricAnnotations(parsed.metrics);
+    } catch { /* non-fatal — metrics still saved without annotations */ }
+
     // Save report
     const reportId = uuidv4();
     await createReport({
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
       const keyFromDisplay = normalizeMetricKey(m.display_name);
       const keyFromMetricKey = normalizeMetricKey(m.metric_key);
       const key = keyFromDisplay !== slugifyStr(m.display_name) ? keyFromDisplay : keyFromMetricKey;
+      const ann = annotations[m.metric_key] ?? null;
       return {
         id: uuidv4(),
         report_id: reportId,
@@ -94,19 +101,19 @@ export async function POST(request: NextRequest) {
         category: m.category ?? getCategoryForKey(key),
         method: m.method,
         notes: m.notes,
-        advice: m.advice ?? null,
+        advice: ann?.advice ?? null,
       };
     });
 
     await createMetrics(metrics);
 
-    // Upsert AI-generated metric descriptions (stable per metric key, first-write wins)
+    // Upsert stable per-key descriptions into metric_metadata (first-write wins)
     const metadataEntries = parsed.metrics
-      .filter(m => m.description)
-      .map(m => ({
+      .map((m) => ({
         metric_key: normalizeMetricKey(m.metric_key),
-        description: m.description ?? null,
-      }));
+        description: annotations[m.metric_key]?.description ?? null,
+      }))
+      .filter((e) => e.description);
     if (metadataEntries.length > 0) {
       await upsertMetricMetadata(metadataEntries);
     }

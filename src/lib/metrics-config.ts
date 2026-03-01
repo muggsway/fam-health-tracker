@@ -148,46 +148,81 @@ export const CATEGORY_ORDER = [
   'other',
 ];
 
-// Map of alternative names / spellings → canonical metric_key
-// Claude will return metric_key in the JSON, but this is a fallback normalizer
+// Map of alternative names / spellings → canonical metric_key.
+// ORDER MATTERS — more specific patterns must come before broader ones that would
+// otherwise match the same string (e.g. "hemoglobin" would match MCH display name).
 export function normalizeMetricKey(rawName: string): string {
   const name = rawName.toLowerCase().trim();
 
   const mappings: [RegExp, string][] = [
-    [/estimated.average.glucose|\beag\b/i, 'estimated_avg_glucose'],  // must precede hba1c
+    // ── Diabetes / glucose ──────────────────────────────────────────────────
+    [/estimated.average.glucose|\beag\b/i, 'estimated_avg_glucose'],  // before hba1c
     [/hba1c|glycosylated hemo|glycohemo/i, 'hba1c'],
     [/fasting.*glucose|glucose.*fasting|fbs|fpg/i, 'fasting_glucose'],
     [/hs.?crp|high.*sens.*crp|c.reactive.*protein/i, 'hscrp'],
-    [/insulin.*sensitiv|\bHOMA[-.\s]?S\b|sensitiv.*insulin/i, 'insulin_sensitivity'],  // must precede insulin_fasting
-    [/homa[-.\s]?ir\b|homa.*ir|insulin.*resistance.*index/i, 'homa_ir_index'],          // must precede insulin_fasting
-    [/beta[-.\s]?cell.*function|\bHOMA[-.\s]?B\b/i, 'beta_cell_function'],              // must precede insulin_fasting
+    [/insulin.*sensitiv|\bHOMA[-.\s]?S\b|sensitiv.*insulin/i, 'insulin_sensitivity'],  // before insulin_fasting
+    [/homa[-.\s]?ir\b|homa.*ir|insulin.*resistance.*index/i, 'homa_ir_index'],          // before insulin_fasting
+    [/beta[-.\s]?cell.*function|\bHOMA[-.\s]?B\b/i, 'beta_cell_function'],              // before insulin_fasting
     [/insulin.*fasting|fasting.*insulin/i, 'insulin_fasting'],
+
+    // ── Vitamins ────────────────────────────────────────────────────────────
     [/vitamin.*d|25.oh|25-hydroxy/i, 'vitamin_d'],
-    [/de.?ritis|ast.*alt.*ratio|sgot.*sgpt.*ratio|ast.*sgpt.*ratio/i, 'ast_alt_ratio'],  // must precede alt/ast
-    [/alt|sgpt|alanine.*trans/i, 'alt_sgpt'],
-    [/ast|sgot|aspartate.*trans/i, 'ast_sgot'],
+
+    // ── Liver enzymes ───────────────────────────────────────────────────────
+    [/de.?ritis|ast.*alt.*ratio|sgot.*sgpt.*ratio|ast.*sgpt.*ratio/i, 'ast_alt_ratio'],  // before alt/ast
+    // Word-boundary on "alt" to avoid matching "cobalt", "exalt", etc.
+    [/\balt\b|\bsgpt\b|alanine.*trans/i, 'alt_sgpt'],
+    [/\bast\b|\bsgot\b|aspartate.*trans/i, 'ast_sgot'],
+
+    // ── CBC — specific sub-metrics BEFORE the generic hemoglobin/rbc/platelet/rdw patterns ──
+    // MCH and MCHC must come before "hemoglobin" or "mch" will never be reached
+    [/\bmchc\b|mean.*corp.*hemo.*conc/i, 'mchc'],                   // before mch
+    [/\bmch\b|mean.*corp.*hemo(?!.*conc)/i, 'mch'],                 // before hemoglobin
+    // RDW sub-types before generic RDW
+    [/\brdw[-_\s]?sd\b|rdw.*standard.*dev|red.*cell.*dist.*width.*sd/i, 'rdw_sd'],   // before rdw
+    [/\brdwi\b|red.*cell.*dist.*width.*index/i, 'rdwi'],                              // before rdw
+    // NRBC before generic rbc_count
+    [/nrbc.*%|nrbc.*percent|nucleated.*rbc.*%|nucleated.*red.*blood.*cell.*%/i, 'nrbc_percent'],
+    [/\bnrbc\b|nucleated.*red.*blood.*cell|nucleated.*rbc/i, 'nrbc'],                 // before rbc_count
+    // Platelet sub-metrics before generic platelet_count
+    [/\bpdw\b|platelet.*dist.*width/i, 'pdw'],                      // before platelet_count
+    [/\bplcr\b|\bp-lcr\b|platelet.*large.*cell.*ratio/i, 'plcr'],  // before platelet_count
+
+    // ── Hemoglobin (generic — after all MCH/MCHC patterns) ──────────────────
     [/hemoglobin(?!.*a1c)|haemoglobin/i, 'hemoglobin'],
+
+    // ── Lipids — ratios BEFORE component metrics ─────────────────────────────
+    [/trig.*hdl.*ratio|triglyceride.*hdl.*ratio/i, 'trig_hdl_ratio'], // before triglycerides
     [/triglyceride/i, 'triglycerides'],
     [/total.*cholesterol|cholesterol.*total/i, 'total_cholesterol'],
-    [/cholesterol.*hdl.*ratio|hdl.*cholesterol.*ratio/i, 'cholesterol_hdl_ratio'], // must precede hdl pattern
-    [/non[-_\s.]?hdl/i, 'non_hdl_cholesterol'],          // must precede hdl pattern
+    [/cholesterol.*hdl.*ratio|hdl.*cholesterol.*ratio/i, 'cholesterol_hdl_ratio'],  // before hdl
+    [/non[-_\s.]?hdl/i, 'non_hdl_cholesterol'],                                     // before hdl
     [/\bhdl\b|hdl.*cholesterol|cholesterol.*hdl/i, 'hdl_cholesterol'],
-    [/vldl/i, 'vldl_cholesterol'],                                       // must precede ldl pattern
-    [/non[-_\s.]?ldl/i, 'non_ldl_cholesterol'],                         // must precede ldl pattern
-    [/ldl[-_\s.]?hdl.*ratio|hdl[-_\s.]?ldl.*ratio/i, 'ldl_hdl_ratio'], // must precede ldl/hdl patterns
+    [/vldl/i, 'vldl_cholesterol'],                                                   // before ldl
+    [/non[-_\s.]?ldl/i, 'non_ldl_cholesterol'],                                     // before ldl
+    // Include "/" as a valid separator (e.g. "LDL/HDL Ratio")
+    [/ldl[-_\s./]?hdl.*ratio|hdl[-_\s./]?ldl.*ratio/i, 'ldl_hdl_ratio'],           // before ldl/hdl
     [/\bldl\b|(?<!v)ldl.*cholesterol|cholesterol.*(?<!v)ldl/i, 'ldl_cholesterol'],
-    [/apo.*b.*a1|apo.*a1.*b|apo.*ratio/i, 'apo_b_a1_ratio'],  // must precede apo_b
+    [/apo.*b.*a1|apo.*a1.*b|apo.*ratio/i, 'apo_b_a1_ratio'],  // before apo_b
     [/apo.*b(?!\/)/i, 'apo_b'],
     [/apo.*a1|apo.*a-1/i, 'apo_a1'],
+
+    // ── Thyroid ─────────────────────────────────────────────────────────────
     [/tsh/i, 'tsh'],
     [/t3.*total|total.*t3|triiodothyronine/i, 't3_total'],
     [/t4.*total|total.*t4|thyroxine/i, 't4_total'],
+
+    // ── Kidney — ratios BEFORE base metrics ──────────────────────────────────
+    [/bun.*creatinine.*ratio|bun.*sr.*creatinine|bun[-_\s./]creatinine/i, 'bun_creatinine_ratio'],  // before bun
+    [/urea.*creatinine.*ratio|urea.*sr.*creatinine|urea[-_\s./]creatinine/i, 'urea_creatinine_ratio'], // before urea
     [/creatinine.*serum|serum.*creatinine/i, 'creatinine'],
     [/creatinine.*urine|urine.*creatinine/i, 'creatinine_urine'],
     [/egfr|gfr.*estimated|estimated.*gfr|glomerular.*filtration/i, 'egfr'],
     [/urea.*nitrogen|bun/i, 'bun'],
     [/urea(?!.*nitrogen)/i, 'urea'],
     [/uric.*acid/i, 'uric_acid'],
+
+    // ── Vitamins (continued) ─────────────────────────────────────────────────
     [/vitamin.*b12|b12|cyanocobalamin/i, 'vitamin_b12'],
     [/vitamin.*b1(?!2)|thiamin/i, 'vitamin_b1'],
     [/vitamin.*b2|riboflavin/i, 'vitamin_b2'],
@@ -199,6 +234,8 @@ export function normalizeMetricKey(rawName: string): string {
     [/vitamin.*a(?!\d)/i, 'vitamin_a'],
     [/vitamin.*e(?!\d)/i, 'vitamin_e'],
     [/vitamin.*k/i, 'vitamin_k'],
+
+    // ── Minerals / iron panel ────────────────────────────────────────────────
     [/iron(?!.*bind)/i, 'iron'],
     [/tibc|total.*iron.*bind/i, 'tibc'],
     [/ferritin/i, 'ferritin'],
@@ -210,23 +247,29 @@ export function normalizeMetricKey(rawName: string): string {
     [/sodium/i, 'sodium'],
     [/potassium/i, 'potassium'],
     [/chloride/i, 'chloride'],
+
+    // ── More liver ───────────────────────────────────────────────────────────
     [/ggtp|ggt|gamma.*glutamyl/i, 'ggt'],
     [/alp|alkaline.*phosph/i, 'alp'],
+    // Bilirubin: indirect MUST come before direct ("indirect" contains "direct" as substring)
     [/bilirubin.*total|total.*bilirubin/i, 'bilirubin_total'],
+    [/bilirubin.*indirect|indirect.*bilirubin/i, 'bilirubin_indirect'],  // before direct
     [/bilirubin.*direct|direct.*bilirubin/i, 'bilirubin_direct'],
-    [/bilirubin.*indirect|indirect.*bilirubin/i, 'bilirubin_indirect'],
+
+    // ── Proteins — A/G ratio BEFORE globulin ─────────────────────────────────
+    [/alb.*globulin.*ratio|albumin.*globulin.*ratio|\ba[_\s./]?g\s*ratio/i, 'ag_ratio'],  // before globulin
     [/total.*protein|protein.*total/i, 'total_protein'],
     [/albumin(?!.*urine|.*creatinine)/i, 'albumin'],
     [/globulin/i, 'globulin'],
+
+    // ── CBC ──────────────────────────────────────────────────────────────────
     [/wbc|leukocyte.*count|leucocyte.*count|white.*blood|\btlc\b|total.*leukocyte|total.*leucocyte/i, 'wbc'],
-    [/rbc|red.*blood.*cell.*count|erythrocyte.*count/i, 'rbc_count'],
-    [/rdw/i, 'rdw'],
+    [/rbc|red.*blood.*cell.*count|erythrocyte.*count/i, 'rbc_count'],  // after nrbc patterns above
+    [/rdw/i, 'rdw'],                                                    // after rdw_sd / rdwi above
     [/hematocrit|\bpcv\b|packed.*cell.*volume/i, 'hematocrit'],
     [/\bmpv\b|mean.*platelet.*volume/i, 'mpv'],
-    [/mcv/i, 'mcv'],
-    [/mch(?!c)/i, 'mch'],
-    [/mchc/i, 'mchc'],
-    [/platelet.*count|platelet\b/i, 'platelet_count'],
+    [/\bmcv\b/i, 'mcv'],
+    [/platelet.*count|platelet\b/i, 'platelet_count'],                 // after pdw / plcr above
     [/basophil.*absolute|absolute.*basophil/i, 'basophils_absolute'],
     [/basophil.*%|basophil.*percent/i, 'basophils_percent'],
     [/eosinophil.*absolute|absolute.*eosinophil/i, 'eosinophils_absolute'],
@@ -238,10 +281,26 @@ export function normalizeMetricKey(rawName: string): string {
     [/neutrophil.*absolute|absolute.*neutrophil/i, 'neutrophils_absolute'],
     [/neutrophil.*%|neutrophil.*percent|segmented.*neutrophil/i, 'neutrophils_percent'],
     [/esr/i, 'esr'],
+
+    // ── Lipoproteins ─────────────────────────────────────────────────────────
     [/lp.a|lipoprotein.*a\b/i, 'lipoprotein_a'],
     [/lp.pla2/i, 'lp_pla2'],
+
+    // ── Hormones ─────────────────────────────────────────────────────────────
     [/testosterone/i, 'testosterone'],
+
+    // ── Catch-all insulin (after all specific insulin variants above) ─────────
     [/insulin(?!.*fasting|.*resistance|.*sensitiv)/i, 'insulin_fasting'],
+
+    // ── Trace elements — explicit keys to avoid collisions ───────────────────
+    [/\bcobalt\b/i, 'cobalt'],
+    [/\bchromium\b/i, 'chromium'],
+    [/\bselenium\b/i, 'selenium'],
+    [/\bmanganese\b/i, 'manganese'],
+    [/\bzinc\b/i, 'zinc'],
+    [/\bcopper\b/i, 'copper'],
+
+    // ── Other ────────────────────────────────────────────────────────────────
     [/cystatin/i, 'cystatin_c'],
     [/amylase/i, 'amylase'],
     [/lipase/i, 'lipase'],
@@ -282,10 +341,13 @@ export function getCategoryForKey(key: string): string {
     total_protein: 'liver',
     albumin: 'liver',
     globulin: 'liver',
+    ag_ratio: 'liver',
     creatinine: 'kidney',
     egfr: 'kidney',
     bun: 'kidney',
+    bun_creatinine_ratio: 'kidney',
     urea: 'kidney',
+    urea_creatinine_ratio: 'kidney',
     uric_acid: 'kidney',
     cystatin_c: 'kidney',
     urine_microalbumin: 'kidney',
@@ -295,6 +357,8 @@ export function getCategoryForKey(key: string): string {
     cholesterol_hdl_ratio: 'lipid',
     ldl_cholesterol: 'lipid',
     ldl_hdl_ratio: 'lipid',
+    hdl_ldl_ratio: 'lipid',
+    trig_hdl_ratio: 'lipid',
     vldl_cholesterol: 'lipid',
     non_hdl_cholesterol: 'lipid',
     triglycerides: 'lipid',
@@ -336,11 +400,17 @@ export function getCategoryForKey(key: string): string {
     rbc_count: 'blood',
     wbc: 'blood',
     rdw: 'blood',
+    rdw_sd: 'blood',
+    rdwi: 'blood',
     mcv: 'blood',
     mch: 'blood',
     mchc: 'blood',
     platelet_count: 'blood',
     mpv: 'blood',
+    pdw: 'blood',
+    plcr: 'blood',
+    nrbc: 'blood',
+    nrbc_percent: 'blood',
     basophils_absolute: 'blood',
     basophils_percent: 'blood',
     eosinophils_absolute: 'blood',
@@ -430,6 +500,20 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   // Kidney
   cystatin_c: 'Sensitive kidney function marker. More accurate than creatinine for detecting early kidney disease.',
   uibc: 'Unsaturated iron-binding capacity — unused iron-carrying slots on transferrin. Rises when iron is depleted.',
+  // Blood count — CBC sub-metrics
+  rdw_sd: 'Standard deviation of red blood cell size distribution. Measures absolute variation in RBC width.',
+  rdwi: 'Red cell distribution width index. Composite of RBC size variation and volume.',
+  pdw: 'Platelet distribution width. Measures variation in platelet size; elevated may indicate platelet activation.',
+  plcr: 'Platelet large cell ratio. Percentage of large platelets; elevated in active platelet turnover.',
+  nrbc: 'Nucleated red blood cells (absolute count). Normally absent; elevated = severe anaemia or bone marrow stress.',
+  nrbc_percent: 'Nucleated red blood cells as a percentage of white blood cells. Should normally be zero.',
+  // Kidney ratios
+  bun_creatinine_ratio: 'BUN-to-creatinine ratio. Helps distinguish pre-renal (dehydration) from intrinsic kidney disease.',
+  urea_creatinine_ratio: 'Urea-to-creatinine ratio. Elevated ratio suggests dehydration or high protein intake.',
+  // Protein ratio
+  ag_ratio: 'Albumin-to-globulin ratio. Reflects liver function and immune status; low ratio can indicate chronic disease.',
+  // Lipid ratios
+  hdl_ldl_ratio: 'HDL divided by LDL. Higher ratio indicates a more protective cholesterol profile.',
   // Blood count
   rdw_cv: 'Variation in red blood cell size. Elevated may indicate mixed or early anaemia.',
   urine_pus_cells: 'White blood cells found in urine. Elevated = urinary tract infection or kidney inflammation.',
