@@ -2,7 +2,7 @@
 
 import type { MetricsByCategory, MetricWithHistory, MetricDataPoint } from '@/types';
 import type { MetricMetadataRow } from '@/lib/db';
-import { CATEGORY_LABELS, CATEGORY_ORDER, METRIC_DESCRIPTIONS, METRIC_ANALYSIS, METRIC_REF_OVERRIDES } from '@/lib/metrics-config';
+import { CATEGORY_LABELS, CATEGORY_ORDER, METRIC_DESCRIPTIONS, METRIC_ANALYSIS, METRIC_REF_OVERRIDES, LOWER_IS_BETTER_METRICS } from '@/lib/metrics-config';
 import MethodWarningBadge from './MethodWarningBadge';
 import Tooltip from './Tooltip';
 
@@ -16,14 +16,19 @@ function formatDate(dateStr: string): string {
   return new Date(year, month - 1).toLocaleString('default', { month: 'short' }) + " '" + String(year).slice(2);
 }
 
-// Both high and low are red
-function cellBg(status: string | null): string {
-  if (status === 'high' || status === 'low') return 'bg-red-50';
+function isActuallyAbnormal(status: string | null, metricKey: string): boolean {
+  if (status === 'high') return true;
+  if (status === 'low' && !LOWER_IS_BETTER_METRICS.has(metricKey)) return true;
+  return false;
+}
+
+function cellBg(status: string | null, metricKey: string): string {
+  if (isActuallyAbnormal(status, metricKey)) return 'bg-red-50';
   return '';
 }
 
-function cellText(status: string | null): string {
-  if (status === 'high' || status === 'low') return 'text-red-700 font-semibold';
+function cellText(status: string | null, metricKey: string): string {
+  if (isActuallyAbnormal(status, metricKey)) return 'text-red-700 font-semibold';
   return 'text-gray-700';
 }
 
@@ -244,15 +249,15 @@ export default function MetricsTable({ metricsByCategory, metricMetadata = {} }:
                           const cellStatus = computeStatus(dp.value, refLow, refHigh);
                           const cellContent = (
                             <>
-                              <span className={cellText(cellStatus)}>{dp.value}</span>
+                              <span className={cellText(cellStatus, metric.metric_key)}>{dp.value}</span>
                               {cellStatus === 'high' && <span className="ml-1 text-red-500 text-xs">▲</span>}
-                              {cellStatus === 'low' && <span className="ml-1 text-red-500 text-xs">▼</span>}
+                              {cellStatus === 'low' && !LOWER_IS_BETTER_METRICS.has(metric.metric_key) && <span className="ml-1 text-red-500 text-xs">▼</span>}
                             </>
                           );
                           return (
                             <td
                               key={date}
-                              className={`px-4 py-2.5 text-right ${cellBg(cellStatus)} ${isLatest ? 'ring-1 ring-inset ring-blue-100' : ''}`}
+                              className={`px-4 py-2.5 text-right ${cellBg(cellStatus, metric.metric_key)} ${isLatest ? 'ring-1 ring-inset ring-blue-100' : ''}`}
                             >
                               {dp.method ? (
                                 <Tooltip content={`Method: ${dp.method}`} position="above-center">
