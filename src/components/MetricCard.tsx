@@ -1,6 +1,7 @@
 'use client';
 
 import type { MetricWithHistory } from '@/types';
+import { LOWER_IS_BETTER_METRICS } from '@/lib/metrics-config';
 import MethodWarningBadge from './MethodWarningBadge';
 
 interface MetricCardProps {
@@ -42,13 +43,12 @@ function getTrendInfo(metric: MetricWithHistory): { arrow: string; color: string
   const prevVal = metric.previous.value;
   const label = `${arrow} from ${prevVal} ${metric.unit ?? ''}`.trim();
 
-  // Determine if the trend is good or bad
-  // For metrics where higher is worse (most), up = bad
-  // We can check status of latest to infer
+  const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(metric.metric_key);
   let color = 'text-gray-500';
   if (metric.latest.status === 'high' && isUp) color = 'text-red-500';
-  else if (metric.latest.status === 'low' && !isUp) color = 'text-red-500';
+  else if (metric.latest.status === 'low' && !isUp && !lowerIsBetter) color = 'text-red-500';
   else if (metric.latest.status === 'normal') color = 'text-green-600';
+  else if (lowerIsBetter && !isUp) color = 'text-green-600';
 
   return { arrow, color, label };
 }
@@ -57,7 +57,8 @@ export default function MetricCard({ metric }: MetricCardProps) {
   const latest = metric.latest;
   if (!latest) return null;
 
-  const isAbnormal = latest.status === 'high' || latest.status === 'low';
+  const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(metric.metric_key);
+  const isAbnormal = latest.status === 'high' || (latest.status === 'low' && !lowerIsBetter);
   const trend = getTrendInfo(metric);
 
   const description = METRIC_DESCRIPTIONS[metric.metric_key];

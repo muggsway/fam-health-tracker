@@ -14,6 +14,15 @@ export const METRIC_REF_OVERRIDES: Record<string, { refLow?: number; refHigh?: n
   insulin_fasting: { refHigh: 15 },
 };
 
+// For these metrics, a value BELOW the ref range lower bound is actually optimal — not concerning.
+// Only HIGH values are abnormal. "low" status should be displayed as normal/good.
+export const LOWER_IS_BETTER_METRICS = new Set([
+  'ldl_hdl_ratio',
+  'trig_hdl_ratio',
+  'cholesterol_hdl_ratio',
+  'apo_b_a1_ratio',
+]);
+
 export const PRIORITY_METRICS: PriorityMetricConfig[] = [
   {
     key: 'hba1c',

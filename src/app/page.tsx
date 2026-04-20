@@ -15,9 +15,7 @@ export default function Home() {
       .then((r) => r.json())
       .then((data: Profile[]) => {
         setProfiles(data);
-        // Default to Mugdha's profile as it has data
-        const mugdha = data.find((p) => p.id === 'mugdha');
-        setActiveId(mugdha?.id ?? data[0]?.id ?? '');
+        setActiveId(data[0]?.id ?? '');
       })
       .catch(console.error)
       .finally(() => setLoading(false));
